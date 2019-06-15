@@ -92,54 +92,7 @@
     BPending_Free(&sync_mark);
 
 // command-line options
-struct {
-    int help;
-    int version;
-    int logger;
-    #ifndef BADVPN_USE_WINAPI
-    char *logger_syslog_facility;
-    char *logger_syslog_ident;
-    #endif
-    int loglevel;
-    int loglevels[BLOG_NUM_CHANNELS];
-    char *tundev;
-    char *netif_ipaddr;
-    char *netif_netmask;
-    char *netif_ip6addr;
-    char *socks_server_addr;
-    char *username;
-    char *password;
-    char *password_file;
-    int append_source_to_username;
-    char *udpgw_remote_server_addr;
-    int udpgw_max_connections;
-    int udpgw_connection_buffer_size;
-    int udpgw_transparent_dns;
-} options;
-
-// TCP client
-struct tcp_client {
-    int aborted;
-    dead_t dead_aborted;
-    LinkedList1Node list_node;
-    BAddr local_addr;
-    BAddr remote_addr;
-    struct tcp_pcb *pcb;
-    int client_closed;
-    uint8_t buf[TCP_WND];
-    int buf_used;
-    char *socks_username;
-    BSocksClient socks_client;
-    int socks_up;
-    int socks_closed;
-    StreamPassInterface *socks_send_if;
-    StreamRecvInterface *socks_recv_if;
-    uint8_t socks_recv_buf[CLIENT_SOCKS_RECV_BUF_SIZE];
-    int socks_recv_buf_used;
-    int socks_recv_buf_sent;
-    int socks_recv_waiting;
-    int socks_recv_tcp_pending;
-};
+struct options options;
 
 // IP address of netif
 BIPAddr netif_ipaddr;
@@ -206,45 +159,7 @@ LinkedList1 tcp_clients;
 // number of clients
 int num_clients;
 
-static void terminate (void);
-static void print_help (const char *name);
-static void print_version (void);
-static int parse_arguments (int argc, char *argv[]);
-static int process_arguments (void);
-static void signal_handler (void *unused);
-static BAddr baddr_from_lwip (const ip_addr_t *ip_addr, uint16_t port_hostorder);
-static void lwip_init_job_hadler (void *unused);
-static void tcp_timer_handler (void *unused);
-static void device_error_handler (void *unused);
-static void device_read_handler_send (void *unused, uint8_t *data, int data_len);
-static int process_device_udp_packet (uint8_t *data, int data_len);
-static err_t netif_init_func (struct netif *netif);
-static err_t netif_output_func (struct netif *netif, struct pbuf *p, const ip4_addr_t *ipaddr);
-static err_t netif_output_ip6_func (struct netif *netif, struct pbuf *p, const ip6_addr_t *ipaddr);
-static err_t common_netif_output (struct netif *netif, struct pbuf *p);
-static err_t netif_input_func (struct pbuf *p, struct netif *inp);
-static void client_logfunc (struct tcp_client *client);
-static void client_log (struct tcp_client *client, int level, const char *fmt, ...);
-static err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err);
-static void client_handle_freed_client (struct tcp_client *client);
-static void client_free_client (struct tcp_client *client);
-static void client_abort_client (struct tcp_client *client);
-static void client_abort_pcb (struct tcp_client *client);
-static void client_free_socks (struct tcp_client *client);
-static void client_murder (struct tcp_client *client);
-static void client_dealloc (struct tcp_client *client);
-static void client_err_func (void *arg, err_t err);
-static err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
-static void client_socks_handler (struct tcp_client *client, int event);
-static void client_send_to_socks (struct tcp_client *client);
-static void client_socks_send_handler_done (struct tcp_client *client, int data_len);
-static void client_socks_recv_initiate (struct tcp_client *client);
-static void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
-static int client_socks_recv_send_out (struct tcp_client *client);
-static err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len);
-static void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
-
-int main (int argc, char **argv)
+int main_run (int argc, char **argv)
 {
     if (argc <= 0) {
         return 1;

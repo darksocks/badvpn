@@ -23,6 +23,39 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <misc/version.h>
+#include <misc/loggers_string.h>
+#include <misc/loglevel.h>
+#include <misc/minmax.h>
+#include <misc/offset.h>
+#include <misc/dead.h>
+#include <misc/ipv4_proto.h>
+#include <misc/ipv6_proto.h>
+#include <misc/udp_proto.h>
+#include <misc/byteorder.h>
+#include <misc/balloc.h>
+#include <misc/open_standard_streams.h>
+#include <misc/read_file.h>
+#include <misc/ipaddr6.h>
+#include <misc/concat_strings.h>
+#include <structure/LinkedList1.h>
+#include <base/BLog.h>
+#include <system/BReactor.h>
+#include <system/BSignal.h>
+#include <system/BAddr.h>
+#include <system/BNetwork.h>
+#include <flow/SinglePacketBuffer.h>
+#include <socksclient/BSocksClient.h>
+#include <tuntap/BTap.h>
+#include <lwip/init.h>
+#include <lwip/ip_addr.h>
+#include <lwip/priv/tcp_priv.h>
+#include <lwip/netif.h>
+#include <lwip/tcp.h>
+#include <lwip/ip4_frag.h>
+#include <lwip/nd6.h>
+#include <lwip/ip6_frag.h>
+#include <tun2socks/SocksUdpGwClient.h>
 
 // name of the program
 #define PROGRAM_NAME "tun2socks"
@@ -44,3 +77,91 @@
 
 // option to override the destination addresses to give the SOCKS server
 //#define OVERRIDE_DEST_ADDR "10.111.0.2:2000"
+
+struct options{
+    int help;
+    int version;
+    int logger;
+    #ifndef BADVPN_USE_WINAPI
+    char *logger_syslog_facility;
+    char *logger_syslog_ident;
+    #endif
+    int loglevel;
+    int loglevels[BLOG_NUM_CHANNELS];
+    char *tundev;
+    char *netif_ipaddr;
+    char *netif_netmask;
+    char *netif_ip6addr;
+    char *socks_server_addr;
+    char *username;
+    char *password;
+    char *password_file;
+    int append_source_to_username;
+    char *udpgw_remote_server_addr;
+    int udpgw_max_connections;
+    int udpgw_connection_buffer_size;
+    int udpgw_transparent_dns;
+};
+
+// TCP client
+struct tcp_client {
+    int aborted;
+    dead_t dead_aborted;
+    LinkedList1Node list_node;
+    BAddr local_addr;
+    BAddr remote_addr;
+    struct tcp_pcb *pcb;
+    int client_closed;
+    uint8_t buf[TCP_WND];
+    int buf_used;
+    char *socks_username;
+    BSocksClient socks_client;
+    int socks_up;
+    int socks_closed;
+    StreamPassInterface *socks_send_if;
+    StreamRecvInterface *socks_recv_if;
+    uint8_t socks_recv_buf[CLIENT_SOCKS_RECV_BUF_SIZE];
+    int socks_recv_buf_used;
+    int socks_recv_buf_sent;
+    int socks_recv_waiting;
+    int socks_recv_tcp_pending;
+};
+
+void terminate (void);
+void print_help (const char *name);
+void print_version (void);
+int parse_arguments (int argc, char *argv[]);
+int process_arguments (void);
+void signal_handler (void *unused);
+BAddr baddr_from_lwip (const ip_addr_t *ip_addr, uint16_t port_hostorder);
+void lwip_init_job_hadler (void *unused);
+void tcp_timer_handler (void *unused);
+void device_error_handler (void *unused);
+void device_read_handler_send (void *unused, uint8_t *data, int data_len);
+int process_device_udp_packet (uint8_t *data, int data_len);
+err_t netif_init_func (struct netif *netif);
+err_t netif_output_func (struct netif *netif, struct pbuf *p, const ip4_addr_t *ipaddr);
+err_t netif_output_ip6_func (struct netif *netif, struct pbuf *p, const ip6_addr_t *ipaddr);
+err_t common_netif_output (struct netif *netif, struct pbuf *p);
+err_t netif_input_func (struct pbuf *p, struct netif *inp);
+void client_logfunc (struct tcp_client *client);
+void client_log (struct tcp_client *client, int level, const char *fmt, ...);
+err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err);
+void client_handle_freed_client (struct tcp_client *client);
+void client_free_client (struct tcp_client *client);
+void client_abort_client (struct tcp_client *client);
+void client_abort_pcb (struct tcp_client *client);
+void client_free_socks (struct tcp_client *client);
+void client_murder (struct tcp_client *client);
+void client_dealloc (struct tcp_client *client);
+void client_err_func (void *arg, err_t err);
+err_t client_recv_func (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err);
+void client_socks_handler (struct tcp_client *client, int event);
+void client_send_to_socks (struct tcp_client *client);
+void client_socks_send_handler_done (struct tcp_client *client, int data_len);
+void client_socks_recv_initiate (struct tcp_client *client);
+void client_socks_recv_handler_done (struct tcp_client *client, int data_len);
+int client_socks_recv_send_out (struct tcp_client *client);
+err_t client_sent_func (void *arg, struct tcp_pcb *tpcb, u16_t len);
+void udpgw_client_handler_received (void *unused, BAddr local_addr, BAddr remote_addr, const uint8_t *data, int data_len);
+int main_run (int argc, char **argv);
